@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Administrador - DomiPay</title>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+    <style>
+        :root {
+            --primary-color: #6C63FF;
+            --secondary-color: #FF6584;
+            --light-gray: #f4f4f9;
+            --dark-gray: #333;
+            --white: #fff;
+            --transition: 0.3s ease;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            background: linear-gradient(135deg, #f0f0ff, #ffffff);
+            color: var(--dark-gray);
+            text-align: center;
+        }
+
+        /* Logo con efecto de desvanecimiento */
+        .logo-container {
+            position: relative;
+            margin-top: 50px;
+            margin-bottom: 20px;
+            display: inline-block;
+        }
+
+        .logo-container img {
+            width: 140px;
+            height: auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        .logo-container::after {
+            content: "";
+            position: absolute;
+            top: 10px; /* un poco arriba del logo */
+            left: 50%;
+            transform: translateX(-50%);
+            width: 140px;
+            height: 140px;
+            background: url('logo.png') no-repeat center/contain;
+            opacity: 0.2; /* desvanecido detrás */
+            z-index: 0;
+            filter: blur(5px); /* suaviza el fondo */
+        }
+
+        h1 {
+            font-size: 3em;
+            color: var(--primary-color);
+            margin: 0 0 40px 0;
+            position: relative;
+            z-index: 2;
+        }
+
+        /* Container */
+        .container {
+            max-width: 600px;
+            margin: 0 auto 60px auto;
+            padding: 0 20px;
+        }
+
+        /* Panel */
+        .panel {
+            background: var(--white);
+            padding: 40px;
+            border-radius: 20px;
+            transition: transform var(--transition);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+        }
+
+        .panel:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 30px rgba(0,0,0,0.2);
+        }
+
+        .panel h2 {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8em;
+            margin-top: 0;
+            margin-bottom: 25px;
+            color: var(--secondary-color);
+        }
+
+        .panel h2 i {
+            margin-right: 10px;
+        }
+
+        /* Form */
+        form { display: flex; flex-direction: column; gap: 20px; }
+        input {
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            font-size: 1em;
+            transition: border var(--transition), box-shadow var(--transition);
+        }
+
+        input:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 10px rgba(108,99,255,0.2);
+            outline: none;
+        }
+
+        button, .btn {
+            padding: 15px;
+            font-size: 1.1em;
+            font-weight: bold;
+            color: var(--white);
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background-color var(--transition), transform var(--transition);
+            text-align: center;
+            display: inline-block;
+        }
+
+        button:disabled { background: #ccc; cursor: not-allowed; }
+
+        .btn-primary {
+            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(108,99,255,0.3);
+        }
+
+        /* Result Area */
+        .result-area {
+            margin-top: 30px;
+            text-align: center;
+            animation: fadeIn 0.5s ease forwards;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        #qr-canvas {
+            border: 2px dashed #ccc;
+            border-radius: 15px;
+            transition: transform var(--transition);
+        }
+
+        #qr-canvas:hover {
+            transform: scale(1.05);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+<div class="logo-container">
+    <img src="logo.png" alt="Logo Paduki">
+</div>
+
+<h1>DomiPay</h1>
+
+<div class="container">
+    <section class="panel">
+        <h2><i class="fas fa-credit-card"></i> Crear Tarjeta</h2>
+        <form id="voucher-form">
+            <input type="text" id="customer_name" placeholder="Nombre del Cliente" required>
+            <input type="email" id="customer_email" placeholder="Email del Cliente" required>
+            <input type="number" id="amount" placeholder="Monto (ej. 100.00)" step="0.01" required>
+            <input type="text" id="store_id" placeholder="ID de Tienda (ej. STORE-001)" required>
+            <button type="submit" class="btn-primary">Generar Tarjeta</button>
+        </form>
+        <div class="result-area">
+            <p id="mensaje"></p>
+            <canvas id="qr-canvas"></canvas>
+            <a id="download-pdf-btn" class="btn btn-primary" style="display: none; margin-top: 15px;">Descargar PDF</a>
+        </div>
+    </section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.1/qrcode.min.js"></script>
+<script>
+    document.getElementById('voucher-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const mensajeEl = document.getElementById('mensaje');
+        const downloadBtn = document.getElementById('download-pdf-btn');
+        mensajeEl.textContent = 'Creando...';
+        downloadBtn.style.display = 'none';
+
+        try {
+            const response = await fetch('/api/vouchers/create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    customer_name: document.getElementById('customer_name').value,
+                    customer_email: document.getElementById('customer_email').value,
+                    amount: parseFloat(document.getElementById('amount').value),
+                    store_id: document.getElementById('store_id').value
+                })
+            });
+            const resultado = await response.json();
+            if (!response.ok) throw new Error(resultado.message);
+
+            QRCode.toCanvas(document.getElementById('qr-canvas'), resultado.qr_data, { width: 200 });
+            mensajeEl.textContent = `¡Voucher creado! ID: ${resultado.voucher_id}`;
+            downloadBtn.href = `/api/vouchers/${resultado.voucher_id}/pdf`;
+            downloadBtn.style.display = 'block';
+        } catch (error) {
+            mensajeEl.textContent = `Error: ${error.message}`;
+        }
+    });
+</script>
+
+</body>
+</html>

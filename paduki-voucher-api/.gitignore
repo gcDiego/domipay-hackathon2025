@@ -1,0 +1,10 @@
+# Contenido para .gitignore
+
+# Dependencias
+/node_modules
+
+# Archivos de entorno (¡Contienen secretos!)
+.env
+
+# Archivos de Base de Datos
+*.mysql

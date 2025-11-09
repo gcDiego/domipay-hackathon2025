@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terminal de Venta - DomiPay</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+    <style>
+        :root {
+            --primary-color: #6C63FF;
+            --secondary-color: #28a745;
+            --light-gray: #f4f4f9;
+            --dark-gray: #333;
+            --white: #fff;
+            --shadow: 0 4px 12px rgba(0,0,0,0.1);
+            --transition: 0.3s ease;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            background: linear-gradient(135deg, #f0f0ff, #ffffff);
+            color: var(--dark-gray);
+        }
+
+        /* Panel */
+        .container {
+            max-width: 600px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+
+        .panel {
+            background: var(--white);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+            transition: transform var(--transition);
+            position: relative;
+        }
+
+        .panel:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 30px rgba(0,0,0,0.2);
+        }
+
+        .panel h2 {
+            text-align: center;
+            font-size: 2em;
+            margin-bottom: 25px;
+            color: var(--primary-color);
+            position: relative;
+        }
+
+        form { display: flex; flex-direction: column; gap: 20px; }
+
+        input {
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            font-size: 1em;
+            transition: border var(--transition), box-shadow var(--transition);
+        }
+
+        input:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 10px rgba(108,99,255,0.2);
+            outline: none;
+        }
+
+        input[readonly] {
+            background-color: #eef1f6;
+            border-color: #cfd8e3;
+            cursor: not-allowed;
+            color: #555;
+        }
+
+        /* Botón deshabilitado con loading */
+        .btn-secondary {
+            padding: 15px;
+            font-size: 1.1em;
+            font-weight: bold;
+            color: var(--white);
+            border: none;
+            border-radius: 10px;
+            cursor: not-allowed;
+            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            opacity: 0.7;
+        }
+
+        .result-area {
+            margin-top: 30px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            animation: fadeIn 0.5s ease forwards;
+        }
+
+        #qr-reader {
+            width: 100%;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transition: transform var(--transition);
+        }
+
+        #qr-reader:hover {
+            transform: scale(1.02);
+        }
+
+        /* Spinner moderno */
+        .spinner {
+            display: none;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, #6C63FF, #9B86FF);
+            position: relative;
+            animation: rotateSpinner 1s linear infinite;
+        }
+
+        .spinner::after {
+            content: "";
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            width: 40px;
+            height: 40px;
+            background: #fff;
+            border-radius: 50%;
+        }
+
+        @keyframes rotateSpinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        a {
+            color: var(--primary-color);
+            font-weight: bold;
+            text-decoration: none;
+            transition: 0.3s;
+        }
+
+        a:hover {
+            text-decoration: underline;
+            color: #4f49cc;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <section class="panel">
+        <h2>DomiPay - Terminal de Venta</h2>
+        <form id="scan-form">
+            <input type="number" id="amountToCharge" placeholder="Monto a Cobrar" step="0.01" readonly aria-readonly="true">
+            <input type="text" id="recipientWalletUrl" placeholder="Wallet del Comercio" readonly aria-readonly="true">
+            <div id="qr-reader"></div>
+            <!-- Botón deshabilitado con texto de carga -->
+            <button type="button" id="start-scan-btn" class="btn-secondary" disabled>
+                <i class="fas fa-spinner fa-spin"></i> Escaneando...
+            </button>
+        </form>
+        <div class="result-area">
+            <p id="scan-mensaje"></p>
+            <div class="spinner" id="polling-spinner"></div>
+        </div>
+    </section>
+</div>
+
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+<script>
+    const scanMensajeEl = document.getElementById('scan-mensaje');
+    const scanBtn = document.getElementById('start-scan-btn');
+    const spinner = document.getElementById('polling-spinner');
+    const html5QrCode = new Html5Qrcode("qr-reader");
+
+    let pollingInterval;
+    let isScanning = false;
+
+    window.addEventListener('DOMContentLoaded', () => {
+        const amountInput = document.getElementById('amountToCharge');
+        const walletInput = document.getElementById('recipientWalletUrl');
+
+        const storedAmount = sessionStorage.getItem('amountToCharge');
+        const storedWallet = sessionStorage.getItem('recipientWalletUrl');
+
+        if (storedAmount) amountInput.value = storedAmount;
+        if (storedWallet) walletInput.value = storedWallet;
+
+        // Iniciamos escáner automáticamente
+        startScanning();
+    });
+
+    function startScanning() {
+        if (!isScanning && !pollingInterval) {
+            isScanning = true;
+            html5QrCode.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 250, height: 250 } },
+                onScanSuccess,
+                () => {}
+            ).catch(err => {
+                isScanning = false;
+                scanMensajeEl.textContent = "Error: No se pudo iniciar la cámara.";
+            });
+        }
+    }
+
+    async function pollForFinalization(quoteId) {
+        try {
+            const response = await fetch('/callbacks/finalize-payment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ quoteId: quoteId })
+            });
+            if (response.ok) {
+                const resultado = await response.json();
+                clearInterval(pollingInterval);
+                pollingInterval = null;
+                spinner.style.display = 'none';
+                scanMensajeEl.innerHTML = `<strong>¡Pago Confirmado!</strong><br>Nuevo Saldo: ${resultado.final_balance}`;
+            }
+        } catch (error) { console.error(error); }
+    }
+
+    async function onScanSuccess(qrData) {
+        if (isScanning) {
+            isScanning = false;
+            scanMensajeEl.textContent = `QR Detectado... Iniciando pago...`;
+            spinner.style.display = 'block';
+
+            try { await html5QrCode.stop(); } catch(err) { console.warn(err); }
+
+            const paymentData = {
+                qrData,
+                amountToCharge: parseFloat(document.getElementById('amountToCharge').value),
+                recipientWalletUrl: document.getElementById('recipientWalletUrl').value
+            };
+
+            if (!paymentData.amountToCharge || !paymentData.recipientWalletUrl) {
+                scanMensajeEl.textContent = "Error: Debes ingresar el Monto y la Wallet.";
+                spinner.style.display = 'none';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/payments/initiate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(paymentData)
+                });
+                const resultado = await response.json();
+                if (!response.ok) throw new Error(resultado.message);
+
+                scanMensajeEl.innerHTML = `Pago iniciado. <a href="${resultado.approvalUrl}" target="_blank">Haz clic para aprobar</a> y vuelve aquí.<br> Esperando confirmación...`;
+                pollingInterval = setInterval(() => pollForFinalization(resultado.quoteId), 5000);
+
+                setTimeout(() => {
+                    if (pollingInterval) {
+                        clearInterval(pollingInterval);
+                        pollingInterval = null;
+                        spinner.style.display = 'none';
+                        scanMensajeEl.textContent = "Tiempo de espera expirado.";
+                    }
+                }, 120000);
+
+            } catch (error) {
+                scanMensajeEl.textContent = `Error al iniciar el pago: ${error.message}`;
+                spinner.style.display = 'none';
+            }
+        }
+    }
+</script>
+
+</body>
+</html>
