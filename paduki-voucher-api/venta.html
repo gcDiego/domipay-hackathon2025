@@ -233,6 +233,12 @@
                 pollingInterval = null;
                 spinner.style.display = 'none';
                 scanMensajeEl.innerHTML = `<strong>¡Pago Confirmado!</strong><br>Nuevo Saldo: ${resultado.final_balance}`;
+                
+                // Actualizar el botón a un estado de "Pago Completado"
+                scanBtn.innerHTML = '<i class="fas fa-check-circle"></i> Pago Completado';
+                scanBtn.classList.remove('btn-secondary');
+                scanBtn.classList.add('btn-success'); // Un nuevo estilo para el éxito
+                scanBtn.disabled = true;
             }
         } catch (error) { console.error(error); }
     }
@@ -275,12 +281,24 @@
                         pollingInterval = null;
                         spinner.style.display = 'none';
                         scanMensajeEl.textContent = "Tiempo de espera expirado.";
+                        
+                        // Resetear el botón para permitir un nuevo escaneo
+                        scanBtn.innerHTML = '<i class="fas fa-qrcode"></i> Escanear de Nuevo';
+                        scanBtn.classList.remove('btn-secondary');
+                        scanBtn.disabled = false;
+                        scanBtn.onclick = startScanning; // Asignar la función de escaneo de nuevo
                     }
                 }, 120000);
 
             } catch (error) {
                 scanMensajeEl.textContent = `Error al iniciar el pago: ${error.message}`;
                 spinner.style.display = 'none';
+                
+                // Permitir al usuario intentar de nuevo
+                scanBtn.innerHTML = '<i class="fas fa-redo"></i> Intentar de Nuevo';
+                scanBtn.classList.remove('btn-secondary');
+                scanBtn.disabled = false;
+                scanBtn.onclick = startScanning;
             }
         }
     }
